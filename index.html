@@ -5,9 +5,9 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
-  <h1>GPS Coordinates</h1>
+  <h1>GPS Coordinates PWA</h1>
 
-  <p id="coordinates">Fetching coordinates...</p>
+  <button id="getLocationButton">Get Location</button>
 
   <script>
     if ('serviceWorker' in navigator) {
@@ -20,21 +20,54 @@
         });
     }
 
-    function showCoordinates(position) {
-      const latitude = position.coords.latitude;
-      const longitude = position.coords.longitude;
+    document.getElementById('getLocationButton').addEventListener('click', function() {
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(function(position) {
+          var latitude = position.coords.latitude;
+          var longitude = position.coords.longitude;
 
-      document.getElementById('coordinates').textContent = `Latitude: ${latitude}, Longitude: ${longitude}`;
-    }
+          storeCoordinatesInIndexedDB(latitude, longitude);
+        }, function(error) {
+          console.error('Error retrieving GPS coordinates:', error);
+        });
+      } else {
+        console.log('Geolocation is not supported by this browser.');
+      }
+    });
 
-    function showError(error) {
-      document.getElementById('coordinates').textContent = `Error: ${error.message}`;
-    }
+    function storeCoordinatesInIndexedDB(latitude, longitude) {
+      var request = indexedDB.open('coordinatesDB', 1);
 
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(showCoordinates, showError);
-    } else {
-      document.getElementById('coordinates').textContent = 'Geolocation is not supported by this browser.';
+      request.onupgradeneeded = function(event) {
+        var db = event.target.result;
+        var objectStore = db.createObjectStore('coordinates', { keyPath: 'id', autoIncrement: true });
+      };
+
+      request.onsuccess = function(event) {
+        var db = event.target.result;
+        var transaction = db.transaction(['coordinates'], 'readwrite');
+        var objectStore = transaction.objectStore('coordinates');
+
+        var coordinate = { latitude: latitude, longitude: longitude };
+
+        var addRequest = objectStore.add(coordinate);
+
+        addRequest.onsuccess = function(event) {
+          console.log('GPS coordinates stored in IndexedDB');
+        };
+
+        transaction.oncomplete = function(event) {
+          db.close();
+        };
+
+        transaction.onerror = function(event) {
+          console.error('Error storing GPS coordinates:', event.target.error);
+        };
+      };
+
+      request.onerror = function(event) {
+        console.error('Error opening database:', event.target.errorCode);
+      };
     }
   </script>
 </body>
